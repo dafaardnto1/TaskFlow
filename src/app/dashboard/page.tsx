@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
@@ -24,8 +24,15 @@ export default function Dashboard() {
   const [isActive, setIsActive] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
-
+  
   const router = useRouter();
+
+  // --- FITUR SOUND (FIXED) ---
+  const playSound = (type: string) => {
+    const audio = new Audio(`/sounds/${type === 'complete_all' ? 'win' : type}.mp3`);
+    audio.volume = 0.5;
+    audio.play().catch(e => console.log("Audio play blocked/error:", e)); 
+  };
 
   // --- LOGIKA TIMER (FIXED) ---
   useEffect(() => {
@@ -42,13 +49,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [isActive, timer]);
 
-  // --- SOUNDS ---
-  const playSound = (type: string) => {
-    const audio = new Audio(`/sounds/${type === 'complete_all' ? 'win' : type}.mp3`);
-    audio.volume = 0.5;
-    audio.play().catch(() => {}); 
-  };
-
   // --- MODAL CENTER ---
   const triggerModal = (title: string, message: string, withConfetti = false) => {
     setModalContent({ title, message });
@@ -56,7 +56,7 @@ export default function Dashboard() {
     if (withConfetti) confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
   };
 
-  // --- SMART LINK ---
+  // --- SMART LINK RENDERER ---
   const renderDescription = (text: string) => {
     if (!text) return null;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -73,35 +73,43 @@ export default function Dashboard() {
 
   async function fetchTasks() {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return window.location.href = '/login';
+    if (!user) return router.push('/login');
     const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
     if (data) setTasks(data);
   }
 
-  // --- ADD TASK (FIXED) ---
+  // --- ADD TASK (FIXED RLS ERROR) ---
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
     if (!newTask.trim()) return;
     
+    // Ambil user ID supaya tidak kena RLS Violation
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Sesi habis, silakan login ulang");
+      return;
+    }
+
     const { data, error } = await supabase.from('tasks').insert([
       { 
         title: newTask, 
         description: description, 
         due_date: dueDate || null, 
         status: 'pending', 
-        category: category 
+        category: category,
+        user_id: user.id // Kirim user_id ke Supabase
       }
     ]).select();
 
     if (!error && data) {
-      playSound('success');
+      playSound('success'); // Sound Tambah Task
       setTasks([data[0], ...tasks]);
       setNewTask('');
       setDescription('');
       setDueDate('');
-      triggerModal("BERHASIL!", "Misi baru telah ditambahkan ke dashboard.", true);
+      triggerModal("BERHASIL!", "Misi baru telah ditambahkan.", true);
     } else if (error) {
-      toast.error("Gagal menambah tugas: " + error.message);
+      toast.error("Error: " + error.message);
     }
   }
 
@@ -115,7 +123,7 @@ export default function Dashboard() {
   async function deleteTask(id: any) {
     const { error } = await supabase.from('tasks').delete().eq('id', id);
     if (!error) {
-      playSound('delete');
+      playSound('delete'); // Sound Hapus Task
       setTasks(tasks.filter(t => t.id !== id));
       toast.success("Tugas dihapus");
     }
@@ -139,7 +147,7 @@ export default function Dashboard() {
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setShowModal(false)}></div>
           <div className="relative bg-slate-900 border border-white/10 w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl text-center animate-in zoom-in-95 duration-200">
             <Check className="text-emerald-500 mx-auto mb-4" size={40} />
-            <h3 className="text-xl font-black text-white mb-2 uppercase italic">{modalContent.title}</h3>
+            <h3 className="text-xl font-black text-white mb-2 uppercase italic tracking-widest">{modalContent.title}</h3>
             <p className="text-slate-400 text-sm mb-8 leading-relaxed">{modalContent.message}</p>
             <button onClick={() => setShowModal(false)} className="w-full bg-indigo-600 text-white font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest shadow-lg shadow-indigo-600/20">Lanjutkan</button>
           </div>
@@ -149,13 +157,13 @@ export default function Dashboard() {
       {/* SIDEBAR */}
       <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-0 z-50 w-72 bg-slate-900 text-white p-6 transition-transform flex flex-col border-r border-white/5`}>
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-3"><Zap className="text-indigo-500" /> <span className="font-black text-xl italic uppercase tracking-tighter">TaskFlow</span></div>
+          <div className="flex items-center gap-3"><Zap className="text-indigo-500 font-black" /> <span className="font-black text-xl italic uppercase tracking-tighter">TaskFlow</span></div>
           <button className="lg:hidden" onClick={() => setIsSidebarOpen(false)}><X/></button>
         </div>
 
-        {/* LOGOUT DI ATAS */}
+        {/* LOGOUT DI ATAS (FIXED) */}
         <button 
-          onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} 
+          onClick={async () => { await supabase.auth.signOut(); router.push('/login'); }} 
           className="flex items-center gap-3 text-[10px] text-red-400 font-black mb-10 hover:bg-red-400/10 p-4 rounded-2xl border border-red-400/20 transition-all uppercase tracking-widest"
         >
           <LogOut size={16}/> <span>Keluar Aplikasi</span>
@@ -177,7 +185,7 @@ export default function Dashboard() {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 p-4 md:p-10 overflow-y-auto font-sans">
+      <main className="flex-1 p-4 md:p-10 overflow-y-auto">
         <button className="lg:hidden mb-6 p-3 bg-slate-900 rounded-2xl text-white border border-white/5" onClick={() => setIsSidebarOpen(true)}><Menu size={20}/></button>
         <div className="max-w-4xl mx-auto space-y-6">
           
@@ -186,6 +194,7 @@ export default function Dashboard() {
               <h3 className="text-[10px] font-black opacity-30 mb-2 uppercase tracking-[0.2em]">Overall Progress</h3>
               <span className="text-5xl font-black text-indigo-500">{(tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'completed').length / tasks.length) * 100) : 0)}%</span>
             </div>
+            {/* TIMER CONTAINER (FIXED) */}
             <div className="p-8 rounded-[2.5rem] text-center flex flex-col items-center justify-center bg-indigo-900/20 border border-indigo-500/20 text-white shadow-xl">
               <span className="text-4xl font-black mb-1 tabular-nums tracking-tighter">{formatTime(timer)}</span>
               <button 
@@ -225,13 +234,15 @@ export default function Dashboard() {
                         <div className="group/info relative flex items-center">
                           <Info size={14} className="text-slate-600 cursor-help" />
                           <div className="absolute bottom-full left-0 mb-3 w-56 p-4 bg-slate-800 text-[10px] text-white rounded-2xl opacity-0 group-hover/info:opacity-100 transition-all z-50 shadow-2xl border border-white/10 leading-relaxed font-bold">
+                            {/* SMART LINK */}
                             {renderDescription(task.description)}
                           </div>
                         </div>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-left">
+                    <div className="flex items-center gap-3 mt-1.5">
                       <span className="text-[9px] text-indigo-500 font-black uppercase tracking-[0.2em]">{task.category}</span>
+                      {/* TANGGAL DEADLINE (FIXED) */}
                       {task.due_date && <span className="text-[9px] text-slate-500 font-bold flex items-center gap-1 uppercase"><Calendar size={10}/> {task.due_date}</span>}
                     </div>
                   </div>
