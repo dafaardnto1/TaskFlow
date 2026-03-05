@@ -25,7 +25,6 @@ export default function Dashboard() {
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
   
-  // --- FITUR PROFILE EDIT ---
   const [profileName, setProfileName] = useState("User");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [tempProfileName, setTempProfileName] = useState("");
@@ -72,7 +71,14 @@ export default function Dashboard() {
     if (data) setTasks(data);
   }
 
-  // --- LOGIKA EDIT PROFILE ---
+  // --- LOGIKA TOGGLE STATUS (FIXED ERROR VERCEL) ---
+  async function toggleStatus(id: string, currentStatus: string) {
+    const newStatus = currentStatus === 'pending' ? 'completed' : 'pending';
+    playSound(newStatus === 'completed' ? 'success' : 'toggle');
+    setTasks(tasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
+    await supabase.from('tasks').update({ status: newStatus }).eq('id', id);
+  }
+
   async function updateProfile() {
     const { error } = await supabase.auth.updateUser({ data: { full_name: tempProfileName } });
     if (!error) {
@@ -95,6 +101,15 @@ export default function Dashboard() {
       setTasks([data[0], ...tasks]);
       setNewTask(''); setDescription(''); setDueDate('');
       triggerModal("BERHASIL!", "Tugas baru ditambahkan.", true);
+    }
+  }
+
+  async function deleteTask(id: any) {
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (!error) {
+      playSound('delete');
+      setTasks(tasks.filter(t => t.id !== id));
+      toast.success("Tugas dihapus");
     }
   }
 
@@ -134,20 +149,19 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* MOBILE HEADER - Tetap Muncul */}
+      {/* MOBILE HEADER */}
       <div className="lg:hidden flex items-center justify-between p-5 bg-slate-900 border-b border-white/5 text-white">
         <div className="flex items-center gap-2"><Zap size={20} className="text-indigo-500" /> <span className="font-bold uppercase tracking-widest text-sm italic">TaskFlow</span></div>
         <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-slate-800 rounded-xl"><Menu size={24} /></button>
       </div>
 
-      {/* SIDEBAR / NAVIGATION (FIXED FOR MOBILE) */}
-      <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-0 z-50 w-full lg:w-72 bg-slate-900 text-white p-6 transition-transform duration-300 flex flex-col border-r border-white/5`}>
+      {/* SIDEBAR */}
+      <aside className={`${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-0 z-50 w-full lg:w-72 bg-slate-900 text-white p-6 transition-transform duration-300 flex flex-col border-r border-white/5 shadow-2xl`}>
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3"><Zap className="text-indigo-500" /> <span className="font-black text-xl italic uppercase tracking-tighter">TaskFlow</span></div>
           <button className="lg:hidden p-2 bg-white/5 rounded-full" onClick={() => setIsSidebarOpen(false)}><X size={20}/></button>
         </div>
 
-        {/* LOGOUT DI ATAS - FIXED CLICK */}
         <button 
           onClick={handleLogout}
           className="flex items-center gap-3 text-[10px] text-red-400 font-black mb-8 hover:bg-red-400/10 p-4 rounded-2xl border border-red-400/20 transition-all uppercase tracking-[0.2em]"
@@ -155,14 +169,13 @@ export default function Dashboard() {
           <LogOut size={16}/> <span>Keluar Aplikasi</span>
         </button>
 
-        {/* EDIT PROFILE UI - Desktop & Mobile */}
-        <div className="mb-8 p-4 bg-white/5 rounded-2xl border border-white/5">
+        <div className="mb-8 p-4 bg-white/5 rounded-2xl border border-white/5 shadow-inner">
           {isEditingProfile ? (
             <div className="space-y-3">
               <input value={tempProfileName} onChange={(e) => setTempProfileName(e.target.value)} className="w-full bg-slate-800 text-xs p-2 rounded-xl border border-indigo-500 outline-none text-white font-bold" />
               <div className="flex gap-2">
                 <button onClick={updateProfile} className="flex-1 bg-indigo-600 p-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1"><Save size={12}/> Save</button>
-                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-slate-700 p-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1"><X size={12}/> No</button>
+                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-slate-700 p-2 rounded-xl text-[10px] font-bold flex items-center justify-center gap-1 text-white"><X size={12}/> No</button>
               </div>
             </div>
           ) : (
@@ -181,23 +194,22 @@ export default function Dashboard() {
 
         <nav className="flex-1 space-y-2 overflow-y-auto">
           <p className="text-[10px] font-black opacity-20 uppercase tracking-[0.3em] px-4 mb-4">Workspace</p>
-          <button onClick={() => {setFilterCat('All'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${filterCat === 'All' ? 'bg-indigo-600 shadow-lg shadow-indigo-600/20' : 'hover:bg-white/5 text-slate-400'}`}><LayoutDashboard size={18}/> <span>Dashboard</span></button>
+          <button onClick={() => {setFilterCat('All'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${filterCat === 'All' ? 'bg-indigo-600 shadow-lg shadow-indigo-600/20 text-white' : 'hover:bg-white/5 text-slate-400'}`}><LayoutDashboard size={18}/> <span>Dashboard</span></button>
           
-          {/* Kategori Dinamis: Muncul hanya jika ada tasknya */}
           {activeCategories.map(cat => (
-            <button key={cat as string} onClick={() => {setFilterCat(cat as string); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${filterCat === cat ? 'bg-indigo-600' : 'hover:bg-white/5 text-slate-400'}`}><CheckSquare size={18}/> <span>{cat as string}</span></button>
+            <button key={cat as string} onClick={() => {setFilterCat(cat as string); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${filterCat === cat ? 'bg-indigo-600 text-white' : 'hover:bg-white/5 text-slate-400'}`}><CheckSquare size={18}/> <span>{cat as string}</span></button>
           ))}
         </nav>
         
         <div className="mt-auto pt-4 border-t border-white/10">
           <button onClick={() => setIsDarkMode(!isDarkMode)} className="flex items-center gap-3 text-[11px] font-bold text-slate-500 hover:text-white w-full uppercase tracking-widest">
-            {isDarkMode ? <Sun size={18}/> : <Moon size={18}/>} <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            {isDarkMode ? <Sun size={18}/> : <Moon size={18}/>} <span>{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
           </button>
         </div>
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 p-4 md:p-10 overflow-y-auto font-sans">
+      <main className="flex-1 p-4 md:p-10 overflow-y-auto">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'bg-slate-900 border-white/5 shadow-2xl shadow-black/50' : 'bg-slate-50 border-slate-200'}`}>
@@ -210,7 +222,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <form onSubmit={addTask} className="bg-slate-900/60 p-8 rounded-[3rem] border border-white/5 shadow-2xl">
+          <form onSubmit={addTask} className="bg-slate-900/60 p-8 rounded-[3rem] border border-white/5 shadow-2xl shadow-black/50 overflow-hidden">
             <input type="text" value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Tulis tugas utama..." className="w-full text-2xl font-black bg-transparent outline-none mb-2 text-white placeholder:text-slate-800" />
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Tambahkan link atau catatan..." className="w-full bg-transparent text-sm outline-none mb-6 text-slate-500 resize-none h-12" />
             <div className="flex flex-wrap gap-2 items-center pt-6 border-t border-white/5">
@@ -233,7 +245,7 @@ export default function Dashboard() {
                       {task.description && (
                         <div className="group/info relative flex items-center">
                           <Info size={14} className="text-slate-600" />
-                          <div className="absolute bottom-full left-0 mb-3 w-56 p-4 bg-slate-800 text-[10px] text-white rounded-2xl opacity-0 group-hover/info:opacity-100 transition-all z-50 border border-white/10 leading-relaxed font-bold">
+                          <div className="absolute bottom-full left-0 mb-3 w-56 p-4 bg-slate-800 text-[10px] text-white rounded-2xl opacity-0 group-hover/info:opacity-100 transition-all z-50 border border-white/10 leading-relaxed font-bold shadow-2xl">
                             {task.description.split(/(https?:\/\/[^\s]+)/g).map((part, i) => part.match(/(https?:\/\/[^\s]+)/g) ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-400 font-bold underline">Link <ExternalLink size={10}/></a> : part)}
                           </div>
                         </div>
