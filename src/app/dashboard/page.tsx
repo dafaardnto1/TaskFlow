@@ -20,17 +20,20 @@ export default function Dashboard() {
   const [filterCat, setFilterCat] = useState('All');
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); 
+  
+  // Timer State
   const [timer, setTimer] = useState(60 * 60);
   const [isActive, setIsActive] = useState(false);
   
   const [showModal, setShowModal] = useState(false);
   const [modalContent, setModalContent] = useState({ title: '', message: '' });
   
+  // Profile State
   const [profileName, setProfileName] = useState("User");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [tempProfileName, setTempProfileName] = useState("");
 
-  // --- FITUR SHARE TASK (KEMBALI) ---
+  // Share Task State
   const [showShareModal, setShowShareModal] = useState(false);
   const [shareEmail, setShareEmail] = useState("");
   const [activeShareId, setActiveShareId] = useState<any>(null);
@@ -38,7 +41,22 @@ export default function Dashboard() {
   const router = useRouter();
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
 
-  // --- PRELOAD SOUNDS (FIX DELAY) ---
+  // --- 1. TIMER LOGIC (FIXED) ---
+  useEffect(() => {
+    let interval: any = null;
+    if (isActive && timer > 0) {
+      interval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    } else if (timer === 0) {
+      setIsActive(false);
+      playSound('complete_all');
+      triggerModal("WAKTU HABIS!", "Sesi fokus kamu berakhir.", true);
+    }
+    return () => clearInterval(interval);
+  }, [isActive, timer]);
+
+  // --- 2. PRELOAD SOUNDS ---
   useEffect(() => {
     const sounds = ['success', 'delete', 'toggle', 'win', 'share'];
     sounds.forEach(s => {
@@ -74,11 +92,24 @@ export default function Dashboard() {
     if (data) setTasks(data);
   }
 
+  // --- 3. PROFILE UPDATE LOGIC (FIXED) ---
+  async function updateProfile() {
+    const { error } = await supabase.auth.updateUser({ data: { full_name: tempProfileName } });
+    if (!error) {
+      setProfileName(tempProfileName);
+      setIsEditingProfile(false);
+      playSound('success');
+      toast.success("Profil diperbarui!");
+    } else {
+      toast.error(error.message);
+    }
+  }
+
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
     if (!newTask.trim()) return;
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return toast.error("Login ulang Fa!");
+    if (!user) return toast.error("Sesi habis, login ulang Fa!");
 
     const { data, error } = await supabase.from('tasks').insert([
       { title: newTask, description, due_date: dueDate || null, status: 'pending', category, user_id: user.id }
@@ -88,20 +119,15 @@ export default function Dashboard() {
       playSound('success');
       setTasks([data[0], ...tasks]);
       setNewTask(''); setDescription(''); setDueDate('');
-      triggerModal("BERHASIL!", "Tugas baru ditambahkan.", true);
+      triggerModal("BERHASIL!", "Misi baru ditambahkan.", true);
     }
   }
 
-  // --- LOGIKA SHARE (KEMBALI) ---
   async function handleShare() {
     if (!shareEmail.includes('@')) return toast.error("Email gak valid!");
     const task = tasks.find(t => t.id === activeShareId);
     const currentShared = Array.isArray(task?.shared_with) ? task.shared_with : [];
-    
-    const { error } = await supabase.from('tasks')
-      .update({ shared_with: [...currentShared, shareEmail] })
-      .eq('id', activeShareId);
-
+    const { error } = await supabase.from('tasks').update({ shared_with: [...currentShared, shareEmail] }).eq('id', activeShareId);
     if (!error) {
       playSound('share');
       setShowShareModal(false);
@@ -134,7 +160,7 @@ export default function Dashboard() {
     <div className={`min-h-screen flex flex-col lg:flex-row ${isDarkMode ? 'bg-[#0f172a] text-white font-sans' : 'bg-white text-slate-900 font-sans'}`}>
       <Toaster />
       
-      {/* MODAL POP-UP CENTER */}
+      {/* POP-UP CENTER MODAL */}
       {(showModal || showShareModal) && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => { setShowModal(false); setShowShareModal(false); }}></div>
@@ -180,15 +206,39 @@ export default function Dashboard() {
 
         <button onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }} className="flex items-center gap-3 text-[10px] text-red-400 font-black mb-10 hover:bg-red-400/10 p-4 rounded-2xl border border-red-400/20 transition-all uppercase tracking-widest"><LogOut size={16}/> <span>Keluar Aplikasi</span></button>
 
+        {/* --- 4. PROFILE EDIT UI (FIXED) --- */}
+        <div className="mb-8 p-4 bg-white/5 rounded-2xl border border-white/5">
+          {isEditingProfile ? (
+            <div className="space-y-3">
+              <input value={tempProfileName} onChange={(e) => setTempProfileName(e.target.value)} className="w-full bg-slate-800 text-xs p-2 rounded-xl border border-indigo-500 outline-none text-white font-bold" />
+              <div className="flex gap-2">
+                <button onClick={updateProfile} className="flex-1 bg-indigo-600 p-2 rounded-xl text-[10px] font-bold">Save</button>
+                <button onClick={() => setIsEditingProfile(false)} className="flex-1 bg-slate-700 p-2 rounded-xl text-[10px] font-bold text-white">No</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between group">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-black text-white shrink-0">{profileName[0]?.toUpperCase()}</div>
+                <div className="overflow-hidden text-left">
+                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest text-left">Profile</p>
+                  <p className="text-sm font-bold truncate italic">{profileName}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsEditingProfile(true)} className="p-2 hover:bg-white/10 rounded-lg text-slate-500"><Edit3 size={16}/></button>
+            </div>
+          )}
+        </div>
+
         <nav className="flex-1 space-y-2 overflow-y-auto">
-          <p className="text-[10px] font-black opacity-20 uppercase tracking-[0.3em] px-4 mb-4 text-left">Workspace</p>
+          <p className="text-[10px] font-black opacity-20 uppercase tracking-[0.3em] px-4 mb-4 text-left font-sans">Workspace</p>
           <button onClick={() => {setFilterCat('All'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${filterCat === 'All' ? 'bg-indigo-600 shadow-lg text-white' : 'hover:bg-white/5 text-slate-400'}`}><LayoutDashboard size={18}/> <span>Dashboard</span></button>
           {activeCategories.map(cat => (
             <button key={cat as string} onClick={() => {setFilterCat(cat as string); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${filterCat === cat ? 'bg-indigo-600 text-white' : 'hover:bg-white/5 text-slate-400'}`}><CheckSquare size={18}/> <span>{cat as string}</span></button>
           ))}
         </nav>
         
-        <div className="mt-auto pt-4 border-t border-white/10">
+        <div className="mt-auto pt-4 border-t border-white/10 text-left">
           <button onClick={() => { setIsDarkMode(!isDarkMode); playSound('toggle'); }} className="flex items-center gap-3 text-[11px] font-bold text-slate-500 hover:text-white w-full uppercase tracking-widest transition-all">
             {isDarkMode ? <Sun size={18}/> : <Moon size={18}/>} <span>{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
           </button>
@@ -199,13 +249,13 @@ export default function Dashboard() {
       <main className="flex-1 p-4 md:p-10 overflow-y-auto font-sans">
         <div className="max-w-4xl mx-auto space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'bg-slate-900 border-white/5 shadow-2xl' : 'bg-slate-50 border-slate-200'}`}>
-              <h3 className="text-[10px] font-black opacity-30 mb-2 uppercase text-left tracking-[0.2em]">Overall Progress</h3>
-              <span className="text-5xl font-black text-indigo-500 flex tracking-tighter">{(tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'completed').length / tasks.length) * 100) : 0)}%</span>
+            <div className={`p-8 rounded-[2.5rem] border transition-all ${isDarkMode ? 'bg-slate-900 border-white/5 shadow-2xl' : 'bg-slate-50 border-slate-200 shadow-sm'}`}>
+              <h3 className="text-[10px] font-black opacity-30 mb-2 uppercase text-left tracking-[0.2em] font-sans">Overall Progress</h3>
+              <span className="text-5xl font-black text-indigo-500 flex tracking-tighter tabular-nums font-sans">{(tasks.length > 0 ? Math.round((tasks.filter(t => t.status === 'completed').length / tasks.length) * 100) : 0)}%</span>
             </div>
             <div className="p-8 rounded-[2.5rem] text-center flex flex-col items-center justify-center bg-indigo-900/20 border border-indigo-500/20 text-white shadow-xl">
-              <span className="text-4xl font-black mb-1 tabular-nums tracking-tighter">{formatTime(timer)}</span>
-              <button onClick={() => setIsActive(!isActive)} className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:text-indigo-300 transition-all">{isActive ? 'Pause Focusing' : 'Start Focus'}</button>
+              <span className="text-4xl font-black mb-1 tabular-nums tracking-tighter font-sans">{formatTime(timer)}</span>
+              <button onClick={() => setIsActive(!isActive)} className="text-[10px] uppercase font-black tracking-widest text-indigo-400 hover:text-indigo-300 transition-all font-sans">{isActive ? 'Pause Focusing' : 'Start Focus'}</button>
             </div>
           </div>
 
@@ -213,9 +263,9 @@ export default function Dashboard() {
             <input type="text" value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Tulis tugas utama..." className="w-full text-2xl font-black bg-transparent outline-none mb-2 text-white placeholder:text-slate-800 tracking-tight" />
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Link atau catatan..." className="w-full bg-transparent text-sm outline-none mb-6 text-slate-500 h-12" />
             <div className="flex flex-wrap gap-2 items-center pt-6 border-t border-white/5 text-white">
-              <select value={category} onChange={e => setCategory(e.target.value)} className="bg-slate-800 text-white text-[10px] p-3 rounded-xl font-black uppercase tracking-widest outline-none"><option value="General">General</option><option value="Kerja">Kerja</option><option value="Kuliah">Kuliah</option></select>
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="bg-slate-800 text-white text-[10px] p-3 rounded-xl font-black outline-none" />
-              <button type="submit" className="ml-auto bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all">+ Tambah</button>
+              <select value={category} onChange={e => setCategory(e.target.value)} className="bg-slate-800 text-white text-[10px] p-3 rounded-xl font-black uppercase tracking-widest outline-none font-sans"><option value="General">General</option><option value="Kerja">Kerja</option><option value="Kuliah">Kuliah</option></select>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="bg-slate-800 text-white text-[10px] p-3 rounded-xl font-black outline-none font-sans" />
+              <button type="submit" className="ml-auto bg-indigo-600 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-600/20 transition-all font-sans">+ Tambah</button>
             </div>
           </form>
 
@@ -231,20 +281,19 @@ export default function Dashboard() {
                       <span className={`font-bold text-base truncate ${task.status === 'completed' ? 'line-through opacity-20 text-slate-500' : 'text-white'}`}>{task.title}</span>
                       {task.description && (
                         <div className="group/info relative flex items-center">
-                          <Info size={14} className="text-slate-600 cursor-help" />
-                          <div className="absolute bottom-full left-0 mb-3 w-56 p-4 bg-slate-800 text-[10px] text-white rounded-2xl opacity-0 group-hover/info:opacity-100 transition-all z-50 border border-white/10 leading-relaxed font-bold shadow-2xl">
-                            {task.description.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) => part.match(/(https?:\/\/[^\s]+)/g) ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-400 font-bold underline">Link <ExternalLink size={10}/></a> : part)}
+                          <Info size={14} className="text-slate-600" />
+                          <div className="absolute bottom-full left-0 mb-3 w-56 p-4 bg-slate-800 text-[10px] text-white rounded-2xl opacity-0 group-hover/info:opacity-100 transition-all z-50 border border-white/10 font-bold shadow-2xl leading-relaxed">
+                            {task.description.split(/(https?:\/\/[^\s]+)/g).map((part: string, i: number) => part.match(/(https?:\/\/[^\s]+)/g) ? <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-indigo-400 font-bold underline font-sans">Link <ExternalLink size={10}/></a> : part)}
                           </div>
                         </div>
                       )}
                     </div>
                     <div className="flex items-center gap-3 mt-1.5 overflow-hidden">
                       <span className="text-[9px] text-indigo-500 font-black uppercase tracking-[0.2em]">{task.category}</span>
-                      {task.due_date && <span className="text-[9px] text-slate-500 font-bold flex items-center gap-1 uppercase"><Calendar size={10}/> {task.due_date}</span>}
+                      {task.due_date && <span className="text-[9px] text-slate-500 font-bold flex items-center gap-1 uppercase font-sans"><Calendar size={10}/> {task.due_date}</span>}
                     </div>
                   </div>
                 </div>
-                {/* SHARE & DELETE */}
                 <div className="flex items-center gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-all">
                   <button onClick={() => { setActiveShareId(task.id); setShowShareModal(true); }} className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500 hover:text-white transition-all"><UserPlus size={18} /></button>
                   <button onClick={() => deleteTask(task.id)} className="p-2 text-slate-700 hover:text-red-500 transition-all"><Trash2 size={20}/></button>
