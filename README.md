@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+⚡ TaskFlow
+TaskFlow adalah aplikasi manajemen tugas (To-Do List) modern yang dibangun dengan fokus pada pengalaman pengguna yang memuaskan (satisfying UI). Aplikasi ini membantu kamu mengelola tugas kuliah, proyek, dan harian dengan fitur kolaborasi dan gamifikasi.
 
-## Getting Started
+✨ Fitur Unggulan
+Satisfying UI Sounds: Setiap interaksi seperti tambah, hapus, share, hingga toggle mode dilengkapi dengan feedback suara yang premium.
 
-First, run the development server:
+Confetti Celebration: Perayaan visual berupa ledakan kertas warna-warni saat kamu berhasil menyelesaikan semua tugas (100% progress) atau berhasil membagikan tugas.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Custom Center Modal: Notifikasi sistem yang muncul di tengah layar dengan backdrop blur untuk pengalaman yang lebih fokus dan modern, menggantikan notifikasi standar browser.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Pomodoro Timer: Membantu kamu tetap fokus bekerja selama 2 jam dengan timer yang terintegrasi langsung di dashboard utama.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Smart Link Detection: Secara otomatis mendeteksi URL di bagian catatan dan mengubahnya menjadi link biru tebal yang bisa diklik langsung dari tooltip.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Collaborative Sharing: Bagikan tugas kamu ke teman sekelas cukup dengan memasukkan email mereka melalui modal share yang estetik.
 
-## Learn More
+Editable Profile: Personalisasi nama profil kamu secara instan langsung dari sidebar.
 
-To learn more about Next.js, take a look at the following resources:
+Dark & Light Mode: Dukungan penuh untuk tema gelap dan terang yang nyaman di mata sesuai preferensi kamu.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+🚀 Teknologi yang Digunakan
+Framework: Next.js
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Database & Auth: Supabase
 
-## Deploy on Vercel
+Styling: Tailwind CSS
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Icons: Lucide React
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Animations: Canvas Confetti
+
+Notifications: React Hot Toast
